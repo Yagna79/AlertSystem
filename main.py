@@ -4,7 +4,7 @@ import time
 import os
 from datetime import datetime, timezone
 
-# ===== LOAD ENV VARIABLES =====
+# ===== ENV VARIABLES =====
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
@@ -16,58 +16,79 @@ SYMBOLS = ["BTCUSD", "ETHUSD", "SOLUSD"]
 
 # ===== TELEGRAM FUNCTION =====
 def send_telegram(message):
+    if not BOT_TOKEN or not CHAT_ID:
+        print("❌ Missing BOT_TOKEN or CHAT_ID")
+        return
+
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    
+
     try:
         response = requests.post(url, data={
             "chat_id": CHAT_ID,
             "text": message
         })
-        print("Telegram response:", response.text)
+        print("📩 Telegram response:", response.text)
     except Exception as e:
-        print("Telegram Error:", e)
+        print("❌ Telegram Error:", e)
 
-# ===== SEND TEST MESSAGE ON START =====
+# ===== START MESSAGE =====
 send_telegram("🚀 Bot started successfully on Railway!")
 
 # ===== GET MARKET DATA =====
 def get_data(symbol):
-    url = "https://api.delta.exchange/v2/history/candles"
-    params = {
-        "symbol": symbol,
-        "resolution": "240",  # 4H timeframe
-        "limit": 200
-    }
+    try:
+        url = "https://api.delta.exchange/v2/history/candles"
+        params = {
+            "symbol": symbol,
+            "resolution": "240",  # 4H
+            "limit": 200
+        }
 
-    response = requests.get(url, params=params).json()
-    df = pd.DataFrame(response['result'])
-    df = df.astype(float)
+        response = requests.get(url, params=params).json()
+        print(f"📊 API response ({symbol}):", response)
 
-    return df
+        if 'result' not in response:
+            raise Exception(f"API Error ({symbol}): {response}")
 
-# ===== GET START OF DAY PRICE =====
+        df = pd.DataFrame(response['result'])
+        df = df.astype(float)
+        return df
+
+    except Exception as e:
+        print(f"❌ get_data error ({symbol}):", e)
+        return None
+
+# ===== GET DAY OPEN =====
 def get_day_open(symbol):
-    now = datetime.now(timezone.utc)
-    start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+    try:
+        now = datetime.now(timezone.utc)
+        start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
 
-    url = "https://api.delta.exchange/v2/history/candles"
-    params = {
-        "symbol": symbol,
-        "resolution": "60",  # 1H candles
-        "start": int(start.timestamp()),
-        "limit": 1
-    }
+        url = "https://api.delta.exchange/v2/history/candles"
+        params = {
+            "symbol": symbol,
+            "resolution": "60",
+            "start": int(start.timestamp()),
+            "limit": 1
+        }
 
-    response = requests.get(url, params=params).json()
-    df = pd.DataFrame(response['result'])
-    df = df.astype(float)
+        response = requests.get(url, params=params).json()
 
-    return df.iloc[0]['open']
+        if 'result' not in response or len(response['result']) == 0:
+            raise Exception(f"Day Open Error ({symbol}): {response}")
 
-# ===== SUPER TREND (ATR 16, MULTIPLIER 1.5) =====
+        df = pd.DataFrame(response['result'])
+        df = df.astype(float)
+
+        return df.iloc[0]['open']
+
+    except Exception as e:
+        print(f"❌ get_day_open error ({symbol}):", e)
+        return None
+
+# ===== SUPER TREND =====
 def supertrend(df, period=16, multiplier=1.5):
     df['hl2'] = (df['high'] + df['low']) / 2
-
     df['tr'] = df[['high', 'low', 'close']].max(axis=1) - df[['high', 'low', 'close']].min(axis=1)
     df['atr'] = df['tr'].rolling(period).mean()
 
@@ -86,7 +107,7 @@ def supertrend(df, period=16, multiplier=1.5):
 
     return df
 
-# ===== SIGNAL LOGIC =====
+# ===== SIGNAL =====
 def check_signal(df):
     latest = df.iloc[-1]
     atr = latest['atr']
@@ -106,13 +127,22 @@ while True:
 
         for symbol in SYMBOLS:
             df = get_data(symbol)
+
+            if df is None:
+                message += f"⚠️ {symbol}: Data Error\n\n"
+                continue
+
             df = supertrend(df)
 
             signal = check_signal(df)
             price = df.iloc[-1]['close']
 
             day_open = get_day_open(symbol)
-            change_pct = ((price - day_open) / day_open) * 100
+
+            if day_open is None:
+                change_pct = 0
+            else:
+                change_pct = ((price - day_open) / day_open) * 100
 
             if signal == "RANGE":
                 emoji = "🟡"
@@ -133,10 +163,10 @@ Signal: {signal} → {action}
 
         send_telegram(message)
 
-        print("✅ Dashboard sent successfully")
-        time.sleep(600)  # 10 minutes
+        print("✅ Dashboard sent")
+        time.sleep(600)
 
     except Exception as e:
-        print("❌ Error:", e)
+        print("❌ Main loop error:", e)
         send_telegram(f"⚠️ Error: {e}")
         time.sleep(60)
