@@ -4,21 +4,31 @@ import time
 import os
 from datetime import datetime, timezone
 
-# ===== ENV VARIABLES =====
+# ===== LOAD ENV VARIABLES =====
 BOT_TOKEN = os.getenv("8632293901:AAEgTh3gqanNFBlSXRCLtzjTVPEvYtIso4Q")
 CHAT_ID = os.getenv("486844403")
 
-SYMBOLS = ["BTCUSD", "ETHUSD", "SOLUSD"]
+print("🚀 Bot starting...")
+print("BOT_TOKEN:", BOT_TOKEN)
+print("CHAT_ID:", CHAT_ID)
 
-print("🚀 Bot started...")
+SYMBOLS = ["BTCUSD", "ETHUSD", "SOLUSD"]
 
 # ===== TELEGRAM FUNCTION =====
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    
     try:
-        requests.post(url, data={"chat_id": CHAT_ID, "text": message})
+        response = requests.post(url, data={
+            "chat_id": CHAT_ID,
+            "text": message
+        })
+        print("Telegram response:", response.text)
     except Exception as e:
         print("Telegram Error:", e)
+
+# ===== SEND TEST MESSAGE ON START =====
+send_telegram("🚀 Bot started successfully on Railway!")
 
 # ===== GET MARKET DATA =====
 def get_data(symbol):
@@ -104,7 +114,6 @@ while True:
             day_open = get_day_open(symbol)
             change_pct = ((price - day_open) / day_open) * 100
 
-            # Format output
             if signal == "RANGE":
                 emoji = "🟡"
                 action = "SELL STRADDLE"
@@ -124,10 +133,10 @@ Signal: {signal} → {action}
 
         send_telegram(message)
 
-        print("✅ Alert sent")
+        print("✅ Dashboard sent successfully")
         time.sleep(600)  # 10 minutes
 
     except Exception as e:
-        print("Error:", e)
+        print("❌ Error:", e)
         send_telegram(f"⚠️ Error: {e}")
         time.sleep(60)
