@@ -5,8 +5,8 @@ import os
 from datetime import datetime, timezone
 
 # ===== ENV VARIABLES =====
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+BOT_TOKEN = os.getenv("8632293901:AAEgTh3gqanNFBlSXRCLtzjTVPEvYtIso4Q")
+CHAT_ID = os.getenv("486844403")
 
 print("🚀 Bot starting...")
 print("BOT_TOKEN:", BOT_TOKEN)
