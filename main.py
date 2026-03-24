@@ -5,8 +5,8 @@ import os
 from datetime import datetime, timezone
 
 # ===== ENV VARIABLES =====
-BOT_TOKEN = os.getenv("8632293901:AAEgTh3gqanNFBlSXRCLtzjTVPEvYtIso4Q")
-CHAT_ID = os.getenv("486844403")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
 print("🚀 Bot starting...")
 print("BOT_TOKEN:", BOT_TOKEN)
@@ -34,14 +34,19 @@ def send_telegram(message):
 # ===== START MESSAGE =====
 send_telegram("🚀 Bot started successfully on Railway!")
 
-# ===== GET MARKET DATA =====
+# ===== GET MARKET DATA (FIXED) =====
 def get_data(symbol):
     try:
         url = "https://api.delta.exchange/v2/history/candles"
+
+        now = int(time.time())
+        start = now - (200 * 4 * 60 * 60)  # last 200 candles (4H)
+
         params = {
             "symbol": symbol,
-            "resolution": "240",  # 4H
-            "limit": 200
+            "resolution": "4h",   # ✅ correct format
+            "start": start,       # ✅ required
+            "end": now            # ✅ required
         }
 
         response = requests.get(url, params=params).json()
@@ -52,24 +57,28 @@ def get_data(symbol):
 
         df = pd.DataFrame(response['result'])
         df = df.astype(float)
+
         return df
 
     except Exception as e:
         print(f"❌ get_data error ({symbol}):", e)
         return None
 
-# ===== GET DAY OPEN =====
+# ===== GET DAY OPEN (FIXED) =====
 def get_day_open(symbol):
     try:
         now = datetime.now(timezone.utc)
-        start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+        start_day = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+
+        start = int(start_day.timestamp())
+        end = int(time.time())
 
         url = "https://api.delta.exchange/v2/history/candles"
         params = {
             "symbol": symbol,
-            "resolution": "60",
-            "start": int(start.timestamp()),
-            "limit": 1
+            "resolution": "1h",
+            "start": start,
+            "end": end
         }
 
         response = requests.get(url, params=params).json()
@@ -107,7 +116,7 @@ def supertrend(df, period=16, multiplier=1.5):
 
     return df
 
-# ===== SIGNAL =====
+# ===== SIGNAL LOGIC =====
 def check_signal(df):
     latest = df.iloc[-1]
     atr = latest['atr']
